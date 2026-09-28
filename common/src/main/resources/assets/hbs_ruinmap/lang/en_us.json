@@ -1,0 +1,24 @@
+{
+  "itemGroup.hbs_ruinmap": "HBs Ruin Maps",
+
+  "rarity.hbs_ruinmap.common": "Common",
+  "rarity.hbs_ruinmap.rare": "Rare",
+  "rarity.hbs_ruinmap.epic": "Epic",
+  "rarity.hbs_ruinmap.legendary": "Legendary",
+
+  "item.hbs_ruinmap.unwrapped_ruin_map_common": "Unwrapped Ruin Map (Common)",
+  "item.hbs_ruinmap.unwrapped_ruin_map_rare": "Unwrapped Ruin Map (Rare)",
+  "item.hbs_ruinmap.unwrapped_ruin_map_epic": "Unwrapped Ruin Map (Epic)",
+  "item.hbs_ruinmap.unwrapped_ruin_map_legendary": "Unwrapped Ruin Map (Legendary)",
+
+  "item.hbs_ruinmap.ruin_map_common": "Ruin Map (Common)",
+  "item.hbs_ruinmap.ruin_map_rare": "Ruin Map (Rare)",
+  "item.hbs_ruinmap.ruin_map_epic": "Ruin Map (Epic)",
+  "item.hbs_ruinmap.ruin_map_legendary": "Ruin Map (Legendary)",
+
+  "item.hbs_ruinmap.unwrapped_ruin_map.desc": "Use to chart a distant ruin",
+  "item.hbs_ruinmap.ruin_map.structure": "Marks: %s",
+  "item.hbs_ruinmap.ruin_map.target": "Target: %s, %s",
+
+  "message.hbs_ruinmap.reveal_failed": "The map failed to reveal any nearby POI"
+}

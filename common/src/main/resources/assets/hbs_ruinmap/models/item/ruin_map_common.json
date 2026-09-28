@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/filled_map",
+  "textures": {
+    "layer0": "hbs_ruinmap:item/ruin_map_common"
+  }
+}

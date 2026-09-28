@@ -1,2 +1,97 @@
 Classes
 ---
+
+com.holybuckets.ruinmap.core
+---
+MapManager              ONE INSTANCE PER LEVEL, keyed in a static managers map, mirroring
+                        Foundation's StructureManager. get(Level) resolves through
+                        HBUtil.LevelUtil for integrated servers. Tiers come from
+                        com.holybuckets.foundation.core.Rarity (COMMON / RARE / EPIC /
+                        LEGENDARY).
+
+                        State: LongSet discoveredStructureChunks — ChunkPos.toLong() of every
+                        pooled structure a player has physically walked near in this dimension.
+                        Serialized per level to the datastore under key
+                        "discoveredStructureChunks".
+
+                        Events registered in init(EventRegistrar):
+                          onBeforeServerStarted -> clears managers
+                          onLevelLoad           -> initLevel + load(DataStore)
+                          onDataSave            -> save(DataStore) for every manager
+                          onPlayerNearStructure -> (null filter, all types) marks the structure
+                                                   discovered if isPooledStructure matches
+
+                        Discovery is driven ONLY by proximity. Revealing a map does not mark
+                        its target; the player has to travel there and trip
+                        PlayerNearStructureEvent.
+
+                        Statics: getMapScale / getMinDistance / getMaxDistance per Rarity,
+                        plus the ItemStack NBT helpers getRarity/setRarity, getTarget/setTarget,
+                        getStructureId/setStructureId.
+
+                        Instance: isDiscovered(BlockPos|ChunkPos|StructureInfo),
+                        markDiscovered(BlockPos|StructureInfo), getDiscoveredCount,
+                        getDiscoveredChunks (unmodifiable), clearDiscovered, isPooledStructure.
+
+                        STUBBED:
+                          reveal(ServerPlayer, ItemStack, Rarity)
+                          selectTarget(ServerPlayer, Rarity)
+                          gatherCandidates(ServerPlayer, Rarity)
+                          getStructurePool(Rarity)
+                          createRuinMap(StructureInfo, Rarity, byte)
+                          isTargetClaimed / markTargetClaimed(ServerPlayer, BlockPos)
+                          onRevealFailed(ServerPlayer, Rarity)
+
+com.holybuckets.ruinmap.item
+---
+IRuinMap                getRarity(). Implemented by both map items so MapManager can fall
+                        back to the registered instance's rarity when NBT is absent.
+
+UnwrappedRuinMapItem    extends Item, stacksTo(1). use() -> MapManager.reveal.
+                        Empty result = failure, item is not consumed.
+
+RuinMapItem             extends MapItem, stacksTo(1). Tooltip shows rarity, structure name,
+                        and target coords under F3+H.
+
+ModItems                Registers the creative tab plus 4 unwrapped + 4 revealed instances.
+                        ids: unwrapped_ruin_map_<rarity>, ruin_map_<rarity>
+
+
+Assets
+---
+assets/hbs_ruinmap/models/item/unwrapped_ruin_map_<rarity>.json   item/generated, own layer0
+assets/hbs_ruinmap/models/item/ruin_map_<rarity>.json             parent minecraft:item/filled_map
+assets/hbs_ruinmap/textures/item/                                 TEXTURES NOT YET DRAWN
+assets/hbs_ruinmap/lang/en_us.json
+
+
+Foundation additions backing this mod
+---
+core/Rarity.java           shared tier enum: name, chat color, weight, tier ordinal,
+                           atLeast/next/previous, byName/byOrdinal/byWeight, totalWeight.
+structure/StructureManager getStructuresInBand, getWhitelistedStructuresInBand,
+                           getBlacklistedStructuresInBand, getDiscoveredCount(x2),
+                           isDiscovered, getDiscoveredTypes, getStructureAt.
+structure/StructureAPI     nearestStructuresOfTypes, nearestStructuresExcluding,
+                           structuresWithin, structuresInBand, structuresInBandOfTypes,
+                           structuresInBandExcluding, structuresOfType, nearestStructure,
+                           structureAt, isDiscovered, getDiscoveredTypes,
+                           getDiscoveredCount(x2), addPseudoStructure, removePseudoStructure.
+
+
+Open questions
+---
+1. Verify the vanilla in-hand / item-frame map renderer dispatches on `instanceof MapItem`
+   and not on `Items.FILLED_MAP`. If it is hardcoded to FILLED_MAP, RuinMapItem will not
+   draw its contents and the fallback is a vanilla filled_map stack with custom NBT + name.
+2. Per-tier texture on the revealed map only affects the inventory icon, not the rendered
+   map face.
+3. Foundation must be rebuilt and republished before this mod compiles: Rarity and the new
+   StructureAPI methods do not exist in the 1.8.3 jar that gradle.properties currently pins.
+   Bump Foundation mod_version, republish, then raise foundation_version and
+   foundation_min_version here.
+4. onPlayerNearStructure gates on isPooledStructure, which reads getStructurePool — a stub
+   returning an empty set. Nothing will be recorded as discovered until the toml pools are
+   implemented.
+5. Structure pool config (hbs_ruinmap-common.toml) not written yet. Store ResourceLocation
+   strings and structure tags, not Structure objects.

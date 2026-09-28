@@ -2,6 +2,7 @@ package com.holybuckets.ruinmap;
 
 import com.holybuckets.foundation.event.BalmEventRegister;
 import com.holybuckets.ruinmap.block.ModBlocks;
+import com.holybuckets.ruinmap.config.RuinMapConfig;
 import com.holybuckets.ruinmap.block.be.ModBlockEntities;
 import com.holybuckets.ruinmap.item.ModItems;
 import com.holybuckets.ruinmap.menu.ModMenus;
@@ -30,7 +31,7 @@ public class CommonClass {
         }
 
         //RegisterConfigs
-        //Balm.getConfig().registerConfig(ChallengeTempleConfig.class);
+        Balm.getConfig().registerConfig(RuinMapConfig.class);
         RuinMapMain.INSTANCE = new RuinMapMain();
         BalmEventRegister.registerEvents();
         BalmEventRegister.registerCommands();

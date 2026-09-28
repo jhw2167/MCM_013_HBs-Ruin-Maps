@@ -2,9 +2,10 @@ package com.holybuckets.ruinmap;
 
 
 import com.holybuckets.foundation.event.EventRegistrar;
-import com.holybuckets.ruinmap.config.TemplateConfig;
+import com.holybuckets.ruinmap.config.ModConfig;
+import com.holybuckets.ruinmap.config.RuinMapConfig;
+import com.holybuckets.ruinmap.core.MapManager;
 import net.blay09.mods.balm.api.Balm;
-import net.blay09.mods.balm.api.event.EventPriority;
 import net.blay09.mods.balm.api.event.server.ServerStartingEvent;
 
 /**
@@ -13,7 +14,7 @@ import net.blay09.mods.balm.api.event.server.ServerStartingEvent;
  */
 public class RuinMapMain {
     private static boolean DEV_MODE = false;;
-    private static TemplateConfig CONFIG;
+    private static RuinMapConfig CONFIG;
     public static RuinMapMain INSTANCE;
 
     public RuinMapMain()
@@ -38,6 +39,8 @@ public class RuinMapMain {
         //Events
         EventRegistrar registrar = EventRegistrar.getInstance();
         //ChallengeBlockBehavior.init(registrar);
+        ModConfig.init(registrar);
+        MapManager.init(registrar);
 
 
         //register local events
@@ -46,7 +49,7 @@ public class RuinMapMain {
     }
 
     private void onServerStarting(ServerStartingEvent e) {
-        CONFIG = Balm.getConfig().getActiveConfig(TemplateConfig.class);
+        CONFIG = Balm.getConfig().getActiveConfig(RuinMapConfig.class);
         //this.DEV_MODE = CONFIG.devMode;
         this.DEV_MODE = false;
     }
