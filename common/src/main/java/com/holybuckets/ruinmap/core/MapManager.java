@@ -3,11 +3,14 @@ package com.holybuckets.ruinmap.core;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.holybuckets.foundation.GeneralConfig;
+import com.holybuckets.foundation.HBUtil;
+import com.holybuckets.foundation.core.ChunkExplorerManager;
 import com.holybuckets.foundation.core.Rarity;
 import com.holybuckets.foundation.datastore.DataStore;
 import com.holybuckets.foundation.event.EventRegistrar;
 import com.holybuckets.foundation.event.custom.DatastoreSaveEvent;
 import com.holybuckets.foundation.event.custom.PlayerNearStructureEvent;
+import com.holybuckets.foundation.event.custom.ServerTickEvent;
 import com.holybuckets.foundation.structure.StructureAPI;
 import com.holybuckets.foundation.structure.StructureInfo;
 import com.holybuckets.ruinmap.Constants;
@@ -16,11 +19,15 @@ import com.holybuckets.ruinmap.item.RuinMapItem;
 import it.unimi.dsi.fastutil.longs.LongIterator;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
+import com.holybuckets.foundation.event.custom.TickType;
+import com.mojang.datafixers.util.Pair;
 import net.blay09.mods.balm.api.event.LevelLoadingEvent;
 import net.blay09.mods.balm.api.event.server.ServerStartingEvent;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderSet;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -51,8 +58,9 @@ public class MapManager {
 
     /** Structures that are primed for choosing */
     private final StructureAPI structureAPI;
-    private final Map<Rarity, Queue<StructureInfo>> activeStructures = new HashMap<>();
-    private final Map<ServerLevel, Set<Structure>> structuresNotFoundInDim = new HashMap<>();
+    private final Map<Rarity, Queue<StructureInfo>> activeStructures;
+    private final Map<Structure, List<StructureInfo>> cachedStructures;
+    private final Set<Structure> structuresNotFoundInDim;   //blackList
 
     private static GeneralConfig CONFIG;
     private static ModConfig MOD_CONFIG;
@@ -60,6 +68,9 @@ public class MapManager {
     private MapManager(ServerLevel level) {
         this.level = level;
         this.structureAPI = new StructureAPI(level);
+        this.structuresNotFoundInDim = new HashSet<>();
+        this.activeStructures = new EnumMap<>(Rarity.class);
+        this.cachedStructures = new HashMap<>();
     }
 
     public static void init(EventRegistrar reg) {
@@ -67,6 +78,7 @@ public class MapManager {
         reg.registerOnLevelLoad(MapManager::onLevelLoad);
         reg.registerOnDataSave(MapManager::onDataSave);
         reg.registerOnPlayerNearStructure(null, MapManager::onPlayerNearStructure);
+        reg.registerOnServerTick(TickType.ON_120_TICKS, MapManager::on120Ticks);
     }
 
     private static MapManager initLevel(ServerLevel level) {
@@ -83,15 +95,15 @@ public class MapManager {
 
         Registry<Structure> structRegistry = level.registryAccess().registry(Registries.STRUCTURE).orElseThrow();
 
-        structuresNotFoundInDim.put(level, new HashSet<>());
+        structuresNotFoundInDim.clear();
         for(Rarity rarity : Rarity.values()) {
             activeStructures.put(rarity, new LinkedList<>());
         }
 
         MOD_CONFIG.getAllStructureLocations().forEach(loc -> {
-            if(!structRegistry.containsKey(loc)) {
-                structuresNotFoundInDim.get(level).add(structRegistry.get(loc));
-            }
+            if(structRegistry.containsKey(loc)) return;
+            Structure missing = structRegistry.get(loc);
+            if(missing != null) structuresNotFoundInDim.add(missing);
         });
 
 
@@ -125,6 +137,41 @@ public class MapManager {
         return closest;
     }
 
+    private void addPreferredExploreChunks()
+    {
+        Set<Structure> structures = MOD_CONFIG.getAllStructures();
+
+        List<Structure> randomized = new ArrayList<>();
+        for(Structure s : structures) {
+            if(structuresNotFoundInDim.contains(s)) continue;
+            if(cachedStructures.containsKey(s)) continue;
+
+            List<StructureInfo> list = structureAPI.nearestStructuresOfType(BlockPos.ZERO, MOD_CONFIG.getStructureLoc(s), 100);
+            if(list!=null && !list.isEmpty()) {
+                cachedStructures.put(s, list); continue;
+            }
+            randomized.add(s);
+        }
+
+        if(randomized.isEmpty()) return;
+        Collections.shuffle(randomized);
+
+        Structure structToFind = randomized.get(0);
+        HolderSet<Structure> target = MOD_CONFIG.getHolderSet(structToFind);
+        if(target == null) {
+            structuresNotFoundInDim.add(structToFind);
+            return;
+        }
+
+        int radiusChunks = Math.max(1, ModConfig.MAX_STRUCTURE_LOC_DIST / 16); // 16 blocks per chunk
+        Pair<BlockPos, ?> found = level.getChunkSource().getGenerator()
+            .findNearestMapStructure(level, target, BlockPos.ZERO, radiusChunks, true);
+
+        if(found==null || found.getFirst()==null) return;
+
+        ChunkPos chunk = new ChunkPos(found.getFirst());
+        ChunkExplorerManager.submitPriorityChunk(this.level, chunk);
+    }
 
 
     public ServerLevel getLevel() {
@@ -146,7 +193,7 @@ public class MapManager {
 
     public boolean setDiscovered(BlockPos origin) {
         if (origin == null) return false;
-        return discoveredStructureChunks.add(new ChunkPos(origin).toLong());
+        return discoveredStructureChunks.add(HBUtil.ChunkUtil.getChunkPos1DMap(new ChunkPos(origin)));
     }
 
     public boolean setDiscovered(StructureInfo info) {
@@ -184,7 +231,7 @@ public class MapManager {
     }
 
     public void handleRevealFailed(ServerPlayer player, Rarity rarity) {
-        MESSAGER.sendBottomActionHint(player, "ruinmap.reveal_failed");
+        MESSAGER.sendBottomActionHint(player, Component.translatable("message.hbs_ruinmap.reveal_failed").getString() );
     }
 
 
@@ -239,6 +286,14 @@ public class MapManager {
                 manager.setDiscovered(info);
     }
 
+    private static void on120Ticks(ServerTickEvent event) {
+
+        for (MapManager manager : MANAGERS.values()) {
+            if (manager == null) continue;
+            manager.addPreferredExploreChunks();
+        }
+    }
+
 
     //** STATICS
 
@@ -251,6 +306,6 @@ public class MapManager {
     public static void onRevealFailed(ServerPlayer player, Rarity rarity) {
         MapManager manager = MANAGERS.get(player.level());
         if (manager == null) return;
-        manager.onRevealFailed(player, rarity);
+        manager.handleRevealFailed(player, rarity);
     }
 }

@@ -100,6 +100,8 @@ dependencies {
     // Compile against Chunk Pregenerator, not shipped or loaded at runtime
     implementation fg.deobf("curse.maven:chunkpregenerator-${chunkpregenerator_project_id}:${chunkpregenerator_file_id}")
 
+    implementation fg.deobf("curse.maven:spark-361579:4738952")
+
 }
 
 tasks.withType(JavaCompile).configureEach {

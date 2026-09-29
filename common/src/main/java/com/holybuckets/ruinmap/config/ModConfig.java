@@ -9,19 +9,19 @@ import net.blay09.mods.balm.api.Balm;
 import net.blay09.mods.balm.api.event.EventPriority;
 import net.blay09.mods.balm.api.event.server.ServerStartingEvent;
 import net.blay09.mods.balm.api.event.server.ServerStoppedEvent;
+import net.minecraft.core.Holder;
+import net.minecraft.core.HolderSet;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.levelgen.structure.Structure;
 
 import javax.annotation.Nullable;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class ModConfig {
 
@@ -31,6 +31,10 @@ public class ModConfig {
     private final Map<Rarity, Set<ResourceLocation>> structureLocations = new EnumMap<>(Rarity.class);
     private final Map<Rarity, Set<Structure>> structures = new EnumMap<>(Rarity.class);
     private final Set<ResourceLocation> allStructureLocations = new HashSet<>();
+    private static final Map<Structure, ResourceLocation> structureToLocationMap = new HashMap<>();
+    private Registry<Structure> structureRegistry;
+
+    public static int MAX_STRUCTURE_LOC_DIST = 4096;
 
     private boolean hydrated = false;
 
@@ -78,8 +82,49 @@ public class ModConfig {
         return set == null ? Collections.emptySet() : Collections.unmodifiableSet(set);
     }
 
+    public ResourceLocation getStructureLoc(Structure s) {
+        return structureToLocationMap.get(s);
+    }
+
+    @Nullable
+    public Registry<Structure> getStructureRegistry() {
+        return structureRegistry;
+    }
+
+    @Nullable
+    public TagKey<Structure> getStructureTag(ResourceLocation loc) {
+        if (loc == null) return null;
+        return TagKey.create(Registries.STRUCTURE, loc);
+    }
+
+    @Nullable
+    public TagKey<Structure> getStructureTag(Structure s) {
+        return getStructureTag(getStructureLoc(s));
+    }
+
+    @Nullable
+    public Holder<Structure> getHolder(ResourceLocation loc) {
+        if (loc == null || structureRegistry == null) return null;
+        return structureRegistry.getHolder(ResourceKey.create(Registries.STRUCTURE, loc)).orElse(null);
+    }
+
+    @Nullable
+    public Holder<Structure> getHolder(Structure s) {
+        return getHolder(getStructureLoc(s));
+    }
+
+    @Nullable
+    public HolderSet<Structure> getHolderSet(Structure s) {
+        Holder<Structure> holder = getHolder(s);
+        return holder == null ? null : HolderSet.direct(holder);
+    }
+
     public Set<ResourceLocation> getAllStructureLocations() {
-        return Collections.unmodifiableSet(allStructureLocations);
+        return allStructureLocations;
+    }
+
+    public Set<Structure> getAllStructures() {
+        return structures.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
     }
 
 
@@ -114,7 +159,10 @@ public class ModConfig {
         }
         allStructureLocations.clear();
 
-        Registry<Structure> registry = getStructureRegistry();
+        structureToLocationMap.clear();
+
+        Registry<Structure> registry = resolveStructureRegistry();
+        this.structureRegistry = registry;
         if (registry == null) {
             LoggerProject.logError("013003",
                 "Structure registry unavailable, Ruin Map structure pools left empty");
@@ -137,7 +185,9 @@ public class ModConfig {
 
         for (ResourceLocation loc : locations) {
             Structure structure = registry.get(loc);
-            if (structure != null) resolved.add(structure);
+            if (structure == null) continue;
+            resolved.add(structure);
+            structureToLocationMap.put(structure, loc);
         }
 
         allStructureLocations.addAll(locations);
@@ -182,7 +232,7 @@ public class ModConfig {
     }
 
     @Nullable
-    private Registry<Structure> getStructureRegistry() {
+    private Registry<Structure> resolveStructureRegistry() {
         MinecraftServer server = GeneralConfig.getInstance().getServer();
         if (server == null) return null;
         try {
@@ -194,6 +244,8 @@ public class ModConfig {
     }
 
     private void onServerStopped() {
+        structureRegistry = null;
+        structureToLocationMap.clear();
         INSTANCE = null;
     }
 

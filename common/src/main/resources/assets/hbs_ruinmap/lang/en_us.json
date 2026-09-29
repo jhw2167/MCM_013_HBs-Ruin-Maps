@@ -20,5 +20,5 @@
   "item.hbs_ruinmap.ruin_map.structure": "Marks: %s",
   "item.hbs_ruinmap.ruin_map.target": "Target: %s, %s",
 
-  "message.hbs_ruinmap.reveal_failed": "The map failed to reveal any nearby POI"
+  "message.hbs_ruinmap.reveal_failed": "The map failed to reveal any nearby POI. Try exploring more!"
 }
