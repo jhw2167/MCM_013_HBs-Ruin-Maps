@@ -1,5 +1,6 @@
 package com.holybuckets.ruinmap.config;
 
+import com.holybuckets.easymap.api.EasyMapsAPI;
 import com.holybuckets.foundation.GeneralConfig;
 import com.holybuckets.foundation.HBUtil;
 import com.holybuckets.foundation.core.Rarity;
@@ -31,6 +32,7 @@ public class ModConfig {
     private final Map<Rarity, Set<ResourceLocation>> structureLocations = new EnumMap<>(Rarity.class);
     private final Map<Rarity, Set<Structure>> structures = new EnumMap<>(Rarity.class);
     private final Set<ResourceLocation> allStructureLocations = new HashSet<>();
+    private final Map<ResourceLocation, Integer> structureIcons = new HashMap<>();
     private static final Map<Structure, ResourceLocation> structureToLocationMap = new HashMap<>();
     private Registry<Structure> structureRegistry;
 
@@ -80,6 +82,11 @@ public class ModConfig {
     public Set<Structure> getStructures(Rarity rarity) {
         Set<Structure> set = structures.get(rarity);
         return set == null ? Collections.emptySet() : Collections.unmodifiableSet(set);
+    }
+
+    public int getStructureIcon(ResourceLocation loc, Rarity rarity) {
+        Integer icon = loc == null ? null : structureIcons.get(loc);
+        return icon != null ? icon : EasyMapsAPI.ruinIcon(rarity);
     }
 
     public ResourceLocation getStructureLoc(Structure s) {
@@ -158,33 +165,25 @@ public class ModConfig {
             structures.get(r).clear();
         }
         allStructureLocations.clear();
-
+        structureIcons.clear();
         structureToLocationMap.clear();
 
-        Registry<Structure> registry = resolveStructureRegistry();
-        this.structureRegistry = registry;
-        if (registry == null) {
-            LoggerProject.logError("013003",
-                "Structure registry unavailable, Ruin Map structure pools left empty");
-            return;
-        }
-
-        hydrateTier(Rarity.COMMON, activeConfig.commonStructures, registry);
-        hydrateTier(Rarity.RARE, activeConfig.rareStructures, registry);
-        hydrateTier(Rarity.EPIC, activeConfig.epicStructures, registry);
-        hydrateTier(Rarity.LEGENDARY, activeConfig.legendaryStructures, registry);
+        hydrateTier(Rarity.COMMON, activeConfig.commonStructures);
+        hydrateTier(Rarity.RARE, activeConfig.rareStructures);
+        hydrateTier(Rarity.EPIC, activeConfig.epicStructures);
+        hydrateTier(Rarity.LEGENDARY, activeConfig.legendaryStructures);
 
         hydrated = true;
     }
 
-    private void hydrateTier(Rarity rarity, List<String> configured, Registry<Structure> registry) {
+    private void hydrateTier(Rarity rarity, List<String> configured) {
         Set<ResourceLocation> locations = structureLocations.get(rarity);
         Set<Structure> resolved = structures.get(rarity);
 
-        parseLocations(configured, registry, locations, rarity.getSerializedName() + "Structures", true);
+        parseTier(rarity, configured, locations, rarity.getSerializedName() + "Structures");
 
         for (ResourceLocation loc : locations) {
-            Structure structure = registry.get(loc);
+            Structure structure = HBUtil.LevelUtil.getStructure(loc);
             if (structure == null) continue;
             resolved.add(structure);
             structureToLocationMap.put(structure, loc);
@@ -204,30 +203,41 @@ public class ModConfig {
         }
     }
 
-    private void parseLocations(List<String> configured, Registry<Structure> registry,
-                                Set<ResourceLocation> out, String fieldName, boolean requireRegistered) {
+    private void parseTier(Rarity rarity, List<String> configured, Set<ResourceLocation> out, String fieldName) {
         if (configured == null) return;
 
-        for (String structId : configured) {
-            if (structId == null || structId.isBlank()) continue;
+        for (String entry : configured) {
+            if (entry == null || entry.isBlank()) continue;
 
-            ResourceLocation loc;
+            EasyMapsAPI.StructureIcon parsed;
             try {
-                loc = HBUtil.LOC(structId.trim());
+                parsed = EasyMapsAPI.parseStructureIcon(entry);
             } catch (Exception e) {
-                LoggerProject.logWarning("013006",
-                    "Invalid structure id in " + fieldName + ": '" + structId + "'. " + e.getMessage());
+                LoggerProject.logWarning("013006", "Difficulty parsing " + entry + ", ignoring ");
                 continue;
             }
 
-            if (requireRegistered && !registry.containsKey(loc)) {
-                LoggerProject.logWarning("013007",
-                    "Structure '" + loc + "' in " + fieldName
-                    + " is not present in the structure registry, skipping");
+            ResourceLocation loc = parsed.structure();
+            Structure s = HBUtil.LevelUtil.getStructure(loc);
+            if (s == null) {
+                LoggerProject.logWarning("013007", "Structure " + loc + "not found skipping");
                 continue;
+            }
+
+            int icon = EasyMapsAPI.ruinIcon(rarity);
+            Integer configuredIcon = parsed.iconId();
+            if (configuredIcon != null) {
+                if (EasyMapsAPI.isRarityIcon(configuredIcon, rarity)) {
+                    icon = configuredIcon;
+                } else {
+                    LoggerProject.logWarning("013009",
+                        "Icon id " + configuredIcon + " for '" + loc + "' in " + fieldName
+                        + " is not a " + rarity.getSerializedName() + " icon, using " + icon);
+                }
             }
 
             out.add(loc);
+            structureIcons.put(loc, icon);
         }
     }
 
@@ -245,6 +255,7 @@ public class ModConfig {
 
     private void onServerStopped() {
         structureRegistry = null;
+        structureIcons.clear();
         structureToLocationMap.clear();
         INSTANCE = null;
     }

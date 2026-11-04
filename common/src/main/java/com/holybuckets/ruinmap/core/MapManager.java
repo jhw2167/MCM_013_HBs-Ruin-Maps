@@ -2,6 +2,7 @@ package com.holybuckets.ruinmap.core;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.holybuckets.easymap.api.EasyMapsAPI;
 import com.holybuckets.foundation.GeneralConfig;
 import com.holybuckets.foundation.HBUtil;
 import com.holybuckets.foundation.core.ChunkExplorerManager;
@@ -14,8 +15,9 @@ import com.holybuckets.foundation.event.custom.ServerTickEvent;
 import com.holybuckets.foundation.structure.StructureAPI;
 import com.holybuckets.foundation.structure.StructureInfo;
 import com.holybuckets.ruinmap.Constants;
+import com.holybuckets.ruinmap.LoggerProject;
 import com.holybuckets.ruinmap.config.ModConfig;
-import com.holybuckets.ruinmap.item.RuinMapItem;
+import com.holybuckets.ruinmap.item.IRuinMap;
 import it.unimi.dsi.fastutil.longs.LongIterator;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
@@ -23,6 +25,7 @@ import com.holybuckets.foundation.event.custom.TickType;
 import com.mojang.datafixers.util.Pair;
 import net.blay09.mods.balm.api.event.LevelLoadingEvent;
 import net.blay09.mods.balm.api.event.server.ServerStartingEvent;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.Registry;
@@ -33,10 +36,13 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.MapItem;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.levelgen.structure.Structure;
-import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
+import net.minecraft.world.level.saveddata.maps.MapDecoration;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.*;
@@ -46,7 +52,11 @@ import static com.holybuckets.foundation.CommonClass.MESSAGER;
 public class MapManager {
 
     public static final String CLASS_ID = "013";
-    public static final byte DEFAULT_MAP_SCALE = 4;
+    public static final byte DEFAULT_MAP_SCALE = 3;
+    public static final long SLOW_REVEAL_WARN_MS = 250;
+    public static final int STRUCTURE_SEARCH_RADIUS_CHUNKS = 512;
+    public static final int STRUCTURE_QUERY_LIMIT = 100;
+    public static final String TARGET_DECORATION_ID = "hbs_ruinmap_target";
 
     private static final String DATA_KEY_DISCOVERED = "discoveredStructureChunks";
 
@@ -61,6 +71,7 @@ public class MapManager {
     private final Map<Rarity, Queue<StructureInfo>> activeStructures;
     private final Map<Structure, List<StructureInfo>> cachedStructures;
     private final Set<Structure> structuresNotFoundInDim;   //blackList
+    private int localStructureCacheSize = 1;
 
     private static GeneralConfig CONFIG;
     private static ModConfig MOD_CONFIG;
@@ -139,38 +150,71 @@ public class MapManager {
 
     private void addPreferredExploreChunks()
     {
-        Set<Structure> structures = MOD_CONFIG.getAllStructures();
+        BlockPos origin = getRandomOrigin();
 
-        List<Structure> randomized = new ArrayList<>();
-        for(Structure s : structures) {
+        List<Structure> candidates = new ArrayList<>();
+        for(Structure s : MOD_CONFIG.getAllStructures()) {
             if(structuresNotFoundInDim.contains(s)) continue;
-            if(cachedStructures.containsKey(s)) continue;
+            candidates.add(s);
+        }
+        if(candidates.isEmpty()) return;
+        Collections.shuffle(candidates);
 
-            List<StructureInfo> list = structureAPI.nearestStructuresOfType(BlockPos.ZERO, MOD_CONFIG.getStructureLoc(s), 100);
-            if(list!=null && !list.isEmpty()) {
-                cachedStructures.put(s, list); continue;
-            }
-            randomized.add(s);
+        Structure structToFind = null;
+        for(Structure s : candidates)
+        {
+            ResourceLocation loc = MOD_CONFIG.getStructureLoc(s);
+            if(loc == null) continue;
+
+            if(countNearby(cachedStructures.get(s), origin) >= localStructureCacheSize) continue;
+
+            List<StructureInfo> found = structureAPI.nearestStructuresOfType(origin, loc, STRUCTURE_QUERY_LIMIT);
+            cachedStructures.put(s, found);
+            if(countNearby(found, origin) >= localStructureCacheSize) continue;
+
+            structToFind = s;
+            break;
         }
 
-        if(randomized.isEmpty()) return;
-        Collections.shuffle(randomized);
+        if(structToFind == null) {
+            localStructureCacheSize++;
+            return;
+        }
 
-        Structure structToFind = randomized.get(0);
         HolderSet<Structure> target = MOD_CONFIG.getHolderSet(structToFind);
         if(target == null) {
             structuresNotFoundInDim.add(structToFind);
             return;
         }
 
-        int radiusChunks = Math.max(1, ModConfig.MAX_STRUCTURE_LOC_DIST / 16); // 16 blocks per chunk
-        Pair<BlockPos, ?> found = level.getChunkSource().getGenerator()
-            .findNearestMapStructure(level, target, BlockPos.ZERO, radiusChunks, true);
+        Pair<BlockPos, ?> located = this.level.getChunkSource().getGenerator()
+            .findNearestMapStructure(this.level, target, origin, STRUCTURE_SEARCH_RADIUS_CHUNKS, true);
 
-        if(found==null || found.getFirst()==null) return;
+        if(located == null || located.getFirst() == null) {
+            structuresNotFoundInDim.add(structToFind);
+            return;
+        }
 
-        ChunkPos chunk = new ChunkPos(found.getFirst());
-        ChunkExplorerManager.submitPriorityChunk(this.level, chunk);
+        BlockPos pos = located.getFirst();
+        if(isDiscovered(pos)) return;
+
+        ChunkExplorerManager.submitPriorityChunk(this.level, new ChunkPos(pos));
+    }
+
+    private int countNearby(List<StructureInfo> infos, BlockPos origin) {
+        if(infos == null || infos.isEmpty()) return 0;
+        int count = 0;
+        for(StructureInfo info : infos) {
+            if(info == null || info.getOrigin() == null) continue;
+            if(info.getOrigin().distManhattan(origin) <= ModConfig.MAX_STRUCTURE_LOC_DIST) count++;
+        }
+        return count;
+    }
+
+    private BlockPos getRandomOrigin() {
+        List<ServerPlayer> players = HBUtil.PlayerUtil.getAllPlayers();
+        if(players == null || players.isEmpty()) return BlockPos.ZERO;
+        return players.get(this.level.random.nextInt(players.size())).blockPosition();
     }
 
 
@@ -209,17 +253,57 @@ public class MapManager {
     {
         buildActiveStructures(player.blockPosition());
         Queue<StructureInfo> pool = activeStructures.get(rarity);
-        if (pool.isEmpty() ) return ItemStack.EMPTY;
-        StructureInfo closest = pool.poll();
+        if (pool == null || pool.isEmpty()) return ItemStack.EMPTY;
 
-        Vec3 center = closest.getOrigin().getCenter();
-        ItemStack map = new ItemStack(RuinMapItem.getMap(rarity));
-        MapItemSavedData mapData = MapItemSavedData.createFresh(center.x, center.z,
-            DEFAULT_MAP_SCALE, true, true, level.dimension());
-        int key = level.getFreeMapId();
-        level.setMapData(MapItem.makeKey(key), mapData);
+        StructureInfo closest = pool.poll();
+        if (closest == null || closest.getOrigin() == null) return ItemStack.EMPTY;
+
+        BlockPos target = closest.getOrigin();
+
+        long createStart = System.nanoTime();
+        ItemStack map = EasyMapsAPI.createRegionAlignedMap(this.level, target, DEFAULT_MAP_SCALE);
+        long hydrateStart = System.nanoTime();
+        int hydratedPixels = EasyMapsAPI.hydrateFromRegionMaps(this.level, map);
+        long hydrateEnd = System.nanoTime();
+
+        long createMs = (hydrateStart - createStart) / 1_000_000L;
+        long hydrateMs = (hydrateEnd - hydrateStart) / 1_000_000L;
+        if (createMs + hydrateMs >= SLOW_REVEAL_WARN_MS) {
+            LoggerProject.logWarning("013010", "Slow ruin map reveal: createRegionAlignedMap " + createMs
+                + " ms, hydrateFromRegionMaps " + hydrateMs + " ms (" + hydratedPixels + " pixels), target " + target);
+        }
+        int icon = ModConfig.getInstance().getStructureIcon(closest.getStructureLocation(), rarity);
+        if (!EasyMapsAPI.addIcon(map, target, TARGET_DECORATION_ID, icon)) {
+            EasyMapsAPI.addMarker(map, target, TARGET_DECORATION_ID, MapDecoration.Type.RED_X);
+        }
+
+        IRuinMap.setRarity(map, rarity);
+        IRuinMap.setTarget(map, target);
+        if (closest.getStructureLocation() != null) {
+            IRuinMap.setStructureId(map, closest.getStructureLocation());
+        }
+
+        map.setHoverName(Component.translatable("item." + Constants.MOD_ID + ".ruin_map_" + rarity.getSerializedName())
+            .withStyle(style -> style.withColor(rarity.getColor()).withItalic(false)));
+
+        appendLore(map, Component.translatable(rarity.getTranslationKey(Constants.MOD_ID))
+            .withStyle(style -> style.withColor(rarity.getColor()).withItalic(false)));
+
+        if (closest.getStructureLocation() != null) {
+            appendLore(map, Component.translatable("item." + Constants.MOD_ID + ".ruin_map.structure",
+                    Component.translatable(closest.getStructureLocation().toLanguageKey("structure")))
+                .withStyle(style -> style.withColor(ChatFormatting.GRAY).withItalic(false)));
+        }
+
         setDiscovered(closest);
         return map;
+    }
+
+    private static void appendLore(ItemStack stack, Component line) {
+        CompoundTag display = stack.getOrCreateTagElement("display");
+        ListTag lore = display.getList("Lore", Tag.TAG_STRING);
+        lore.add(StringTag.valueOf(Component.Serializer.toJson(line)));
+        display.put("Lore", lore);
     }
 
     public Set<ResourceLocation> getStructurePool(Rarity rarity) {

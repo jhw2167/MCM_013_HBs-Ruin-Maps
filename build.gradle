@@ -168,6 +168,8 @@ subprojects {
                 "foundation_min_version": project.foundation_min_version,
                 "chunkload_version": project.chunkload_version,
                 "chunkload_min_version": project.chunkload_min_version,
+                "easymap_version": project.easymap_version,
+                "easymap_min_version": project.easymap_min_version,
                 "create_version": project.create_version
         ]
 

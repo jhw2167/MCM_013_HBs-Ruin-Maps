@@ -19,11 +19,11 @@ import net.minecraft.world.level.Level;
 import javax.annotation.Nullable;
 import java.util.List;
 
-public class UnwrappedRuinMapItem extends Item implements IRuinMap {
+public class RuinMap extends Item implements IRuinMap {
 
     private final Rarity rarity;
 
-    public UnwrappedRuinMapItem(Rarity rarity) {
+    public RuinMap(Rarity rarity) {
         super(Balm.getItems().itemProperties().stacksTo(1));
         this.rarity = rarity;
     }

@@ -27,6 +27,11 @@ dependencies {
         changing = true
     }
 
+    modImplementation ("com.holybuckets.easymap:HBs_Easy_Maps-fabric-${minecraft_version}:${easymap_version}") {
+        transitive = false
+        changing = true
+    }
+
     modImplementation("com.simibubi.create:create-fabric:${create_fabric_version}")
 
 }

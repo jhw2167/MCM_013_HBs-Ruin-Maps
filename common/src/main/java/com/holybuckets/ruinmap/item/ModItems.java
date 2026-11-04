@@ -18,42 +18,27 @@ public class ModItems {
     public static final ResourceLocation RUINMAP_TAB = id(Constants.MOD_ID);
     public static DeferredObject<CreativeModeTab> creativeModeTab;
 
-    public static final Map<Rarity, DeferredObject<Item>> unwrappedRuinMap = new EnumMap<>(Rarity.class);
-    public static final Map<Rarity, DeferredObject<Item>> ruinMap = new EnumMap<>(Rarity.class);
+    public static final Map<Rarity, DeferredObject<Item>> ruinMaps = new EnumMap<>(Rarity.class);
 
     public static void initialize(BalmItems items) {
         creativeModeTab = items.registerCreativeModeTab(
-            () -> new ItemStack(unwrappedRuinMap.get(Rarity.LEGENDARY).get()), RUINMAP_TAB);
+            () -> new ItemStack(ruinMaps.get(Rarity.LEGENDARY).get()), RUINMAP_TAB);
 
         for (Rarity rarity : Rarity.values()) {
-            unwrappedRuinMap.put(rarity, items.registerItem(
-                rl -> new UnwrappedRuinMapItem(rarity),
-                id(unwrappedName(rarity)),
-                RUINMAP_TAB));
-
-            ruinMap.put(rarity, items.registerItem(
-                rl -> new RuinMapItem(rarity),
-                id(revealedName(rarity)),
+            ruinMaps.put(rarity, items.registerItem(
+                rl -> new RuinMap(rarity),
+                id(mapName(rarity)),
                 RUINMAP_TAB));
         }
     }
 
-    public static Item unwrappedRuinMap(Rarity rarity) {
-        DeferredObject<Item> obj = unwrappedRuinMap.get(rarity);
-        return obj == null ? null : obj.get();
-    }
-
     public static Item ruinMap(Rarity rarity) {
-        DeferredObject<Item> obj = ruinMap.get(rarity);
+        DeferredObject<Item> obj = ruinMaps.get(rarity);
         return obj == null ? null : obj.get();
     }
 
-    public static String unwrappedName(Rarity rarity) {
+    public static String mapName(Rarity rarity) {
         return "unwrapped_ruin_map_" + rarity.getSerializedName();
-    }
-
-    public static String revealedName(Rarity rarity) {
-        return "ruin_map_" + rarity.getSerializedName();
     }
 
     private static ResourceLocation id(String name) {
