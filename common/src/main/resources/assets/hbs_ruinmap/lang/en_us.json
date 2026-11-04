@@ -6,11 +6,6 @@
   "rarity.hbs_ruinmap.epic": "Epic",
   "rarity.hbs_ruinmap.legendary": "Legendary",
 
-  "item.hbs_ruinmap.unwrapped_ruin_map_common": "Unwrapped Ruin Map (Common)",
-  "item.hbs_ruinmap.unwrapped_ruin_map_rare": "Unwrapped Ruin Map (Rare)",
-  "item.hbs_ruinmap.unwrapped_ruin_map_epic": "Unwrapped Ruin Map (Epic)",
-  "item.hbs_ruinmap.unwrapped_ruin_map_legendary": "Unwrapped Ruin Map (Legendary)",
-
   "item.hbs_ruinmap.ruin_map_common": "Ruin Map (Common)",
   "item.hbs_ruinmap.ruin_map_rare": "Ruin Map (Rare)",
   "item.hbs_ruinmap.ruin_map_epic": "Ruin Map (Epic)",

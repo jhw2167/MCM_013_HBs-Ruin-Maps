@@ -260,18 +260,10 @@ public class MapManager {
 
         BlockPos target = closest.getOrigin();
 
-        long createStart = System.nanoTime();
-        ItemStack map = EasyMapsAPI.createRegionAlignedMap(this.level, target, DEFAULT_MAP_SCALE);
-        long hydrateStart = System.nanoTime();
-        int hydratedPixels = EasyMapsAPI.hydrateFromRegionMaps(this.level, map);
-        long hydrateEnd = System.nanoTime();
 
-        long createMs = (hydrateStart - createStart) / 1_000_000L;
-        long hydrateMs = (hydrateEnd - hydrateStart) / 1_000_000L;
-        if (createMs + hydrateMs >= SLOW_REVEAL_WARN_MS) {
-            LoggerProject.logWarning("013010", "Slow ruin map reveal: createRegionAlignedMap " + createMs
-                + " ms, hydrateFromRegionMaps " + hydrateMs + " ms (" + hydratedPixels + " pixels), target " + target);
-        }
+        ItemStack map = EasyMapsAPI.createLocalMap(this.level, target, DEFAULT_MAP_SCALE);
+        int hydratedPixels = EasyMapsAPI.hydrateFromRegionMaps(this.level, map);
+
         int icon = ModConfig.getInstance().getStructureIcon(closest.getStructureLocation(), rarity);
         if (!EasyMapsAPI.addIcon(map, target, TARGET_DECORATION_ID, icon)) {
             EasyMapsAPI.addMarker(map, target, TARGET_DECORATION_ID, MapDecoration.Type.RED_X);
@@ -282,12 +274,6 @@ public class MapManager {
         if (closest.getStructureLocation() != null) {
             IRuinMap.setStructureId(map, closest.getStructureLocation());
         }
-
-        map.setHoverName(Component.translatable("item." + Constants.MOD_ID + ".ruin_map_" + rarity.getSerializedName())
-            .withStyle(style -> style.withColor(rarity.getColor()).withItalic(false)));
-
-        appendLore(map, Component.translatable(rarity.getTranslationKey(Constants.MOD_ID))
-            .withStyle(style -> style.withColor(rarity.getColor()).withItalic(false)));
 
         if (closest.getStructureLocation() != null) {
             appendLore(map, Component.translatable("item." + Constants.MOD_ID + ".ruin_map.structure",

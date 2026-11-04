@@ -63,7 +63,7 @@ public class RuinMap extends Item implements IRuinMap {
         super.appendHoverText(stack, level, tooltip, flag);
         Rarity r = IRuinMap.getRarity(stack);
         tooltip.add(Component.translatable(r.getTranslationKey(Constants.MOD_ID)).withStyle(r.getColor()));
-        tooltip.add(Component.translatable("item." + Constants.MOD_ID + ".unwrapped_ruin_map.desc")
+        tooltip.add(Component.translatable("item." + Constants.MOD_ID + ".ruin_map.desc")
             .withStyle(ChatFormatting.GRAY));
     }
 }

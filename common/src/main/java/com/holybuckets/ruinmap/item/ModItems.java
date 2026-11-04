@@ -38,7 +38,7 @@ public class ModItems {
     }
 
     public static String mapName(Rarity rarity) {
-        return "unwrapped_ruin_map_" + rarity.getSerializedName();
+        return "ruin_map_" + rarity.getSerializedName();
     }
 
     private static ResourceLocation id(String name) {
