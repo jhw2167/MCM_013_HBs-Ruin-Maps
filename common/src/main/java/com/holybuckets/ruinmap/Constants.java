@@ -8,4 +8,5 @@ public class Constants {
 	public static final String MOD_ID = "hbs_ruinmap";
 	public static final String MOD_NAME = "HBs Ruin Map";
 	public static final Logger LOG = LoggerFactory.getLogger(MOD_NAME);
+    public static final int MOD_NUM = 13;
 }

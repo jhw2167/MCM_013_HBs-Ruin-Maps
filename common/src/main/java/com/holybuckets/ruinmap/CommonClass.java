@@ -1,11 +1,8 @@
 package com.holybuckets.ruinmap;
 
 import com.holybuckets.foundation.event.BalmEventRegister;
-import com.holybuckets.ruinmap.block.ModBlocks;
 import com.holybuckets.ruinmap.config.RuinMapConfig;
-import com.holybuckets.ruinmap.block.be.ModBlockEntities;
 import com.holybuckets.ruinmap.item.ModItems;
-import com.holybuckets.ruinmap.menu.ModMenus;
 import com.holybuckets.ruinmap.platform.Services;
 import net.blay09.mods.balm.api.Balm;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -35,10 +32,7 @@ public class CommonClass {
         RuinMapMain.INSTANCE = new RuinMapMain();
         BalmEventRegister.registerEvents();
         BalmEventRegister.registerCommands();
-        ModBlocks.initialize(Balm.getBlocks());
-        ModBlockEntities.initialize(Balm.getBlockEntities());
         ModItems.initialize(Balm.getItems());
-        ModMenus.initialize(Balm.getMenus());
         
         isInitialized = true;
     }

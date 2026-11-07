@@ -21,8 +21,7 @@ public class ModItems {
     public static final Map<Rarity, DeferredObject<Item>> ruinMaps = new EnumMap<>(Rarity.class);
 
     public static void initialize(BalmItems items) {
-        creativeModeTab = items.registerCreativeModeTab(
-            () -> new ItemStack(ruinMaps.get(Rarity.LEGENDARY).get()), RUINMAP_TAB);
+        //creativeModeTab = items.registerCreativeModeTab(() -> new ItemStack(ruinMaps.get(Rarity.LEGENDARY).get()), RUINMAP_TAB);
 
         for (Rarity rarity : Rarity.values()) {
             ruinMaps.put(rarity, items.registerItem(
@@ -30,6 +29,13 @@ public class ModItems {
                 id(mapName(rarity)),
                 RUINMAP_TAB));
         }
+        FoundationCreativeTab.register(Constants.MOD_ID, Constants.MOD_NUM, () -> new Item[]{{
+            ruinMaps.get(Rarity.COMMON).get(),
+            ruinMaps.get(Rarity.UNCOMMON).get(),
+            ruinMaps.get(Rarity.RARE).get(),
+            ruinMaps.get(Rarity.EPIC).get(),
+            ruinMaps.get(Rarity.LEGENDARY).get()
+        });
     }
 
     public static Item ruinMap(Rarity rarity) {
